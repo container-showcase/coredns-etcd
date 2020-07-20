@@ -29,6 +29,25 @@ podman run -d \
 etcd_ip=$(podman inspect ${ETCD_CONTAINER_NAME} | jq -r '.[].NetworkSettings.IPAddress')
 
 ## Start CoreDNS
+## Create config
+mkdir -p ${PWD}/config
+cat << 'EOF' > config/Corefile
+msk.pub {
+    etcd msk.pub {
+        stubzones
+        path /skydns
+        endpoint http://{$ETCD_IP}:4001
+    }
+    cache 160 skydns.local
+    log
+}
+
+. {
+    forward . 1.1.1.1 1.1.2.2
+    cache
+}
+EOF
+
 ### Pull and run container with above config
 podman pull docker.io/coredns/coredns:${COREDNS_VERSION}
 podman stop ${COREDNS_CONTAINER_NAME} && podman rm ${COREDNS_CONTAINER_NAME}
@@ -55,6 +74,35 @@ dig +short bigdata.msk.pub @${HostIP}
 dig +short -x ${HostIP} @${HostIP}
 
 ### Systemd
-cp -rf systemd/*.service /etc/systemd/system/
-systemctl enable coredns
+mkdir -p ${PWD}/systemd
+cat << 'EOF' > systemd/coredns-etcd.service
+[Unit]
+Description=Etcd container for CoreDNS only
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/podman start -a coredns-etcd
+ExecStop=/usr/bin/podman stop -t 2 coredns-etcd
+
+[Install]
+WantedBy=local.target
+EOF
+cp -rf ${PWD}/systemd/coredns-etcd.service /etc/systemd/system/
 systemctl enable coredns-etcd
+
+cat << 'EOF' > systemd/coredns.service
+[Unit]
+Description=CoreDNS container
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/podman start -a coredns
+ExecStop=/usr/bin/podman stop -t 2 coredns
+
+[Install]
+WantedBy=local.target
+EOF
+cp -rf ${PWD}/systemd/coredns.service /etc/systemd/system/
+systemctl enable coredns
+
+

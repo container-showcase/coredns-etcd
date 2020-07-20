@@ -1,0 +1,27 @@
+#!/bin/env bash 
+
+set -xe
+
+ETCD_VERSION=3.3.11
+COREDNS_VERSION=1.3.1
+ETCD_CONTAINER_NAME=coredns-etcd
+COREDNS_CONTAINER_NAME=coredns
+
+## Remove the etcd backend
+podman stop ${ETCD_CONTAINER_NAME} && podman rm ${ETCD_CONTAINER_NAME}
+podman rmi quay.io/coreos/etcd:v${ETCD_VERSION}
+
+## Remove CoreDNS
+podman stop ${COREDNS_CONTAINER_NAME} && podman rm ${COREDNS_CONTAINER_NAME}
+podman rmi docker.io/coredns/coredns:${COREDNS_VERSION}
+
+### Systemd
+rm -rf  ${PWD}/config
+rm -rf  ${PWD}/systemd
+
+systemctl disable coredns-etcd
+rm -rf /etc/systemd/system/coredns-etcd.service
+
+systemctl disable coredns
+rm -rf /etc/systemd/system/coredns.service
+
