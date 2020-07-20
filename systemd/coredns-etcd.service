@@ -1,0 +1,10 @@
+[Unit]
+Description=Etcd container for CoreDNS only
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/podman start -a coredns-etcd
+ExecStop=/usr/bin/podman stop -t 2 coredns-etcd
+
+[Install]
+WantedBy=local.target
